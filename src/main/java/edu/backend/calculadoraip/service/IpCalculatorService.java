@@ -2,10 +2,14 @@ package edu.backend.calculadoraip.service;
 
 import edu.backend.calculadoraip.dto.IpRequest;
 import edu.backend.calculadoraip.dto.IpResponse;
+import edu.backend.calculadoraip.dto.SubnetBlock;
 import edu.backend.calculadoraip.entity.NetworkInfo;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class IpCalculatorService {
@@ -28,6 +32,8 @@ public class IpCalculatorService {
         if (qtdHosts < 0)
             qtdHosts = 0;
 
+        List<SubnetBlock> blocos = calcularTodasSubredes(info.getIpOctetos(), info.getCidr());
+
         return new IpResponse(
                 request.getIp(),
                 formatIp(info.getMaskOctetos()),
@@ -37,7 +43,8 @@ public class IpCalculatorService {
                 formatIp(primeiroIp),
                 formatIp(ultimoIp),
                 qtdHosts,
-                determinarClasse(info.getIpOctetos()[0])
+                determinarClasse(info.getIpOctetos()[0]),
+                blocos
         );
     }
 
@@ -108,5 +115,50 @@ public class IpCalculatorService {
         if ((invertida & (invertida + 1)) != 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Máscara Inválida");
         }
+    }
+
+    private List<SubnetBlock> calcularTodasSubredes(int[] ip, int cidr) {
+        List<SubnetBlock> blocos = new ArrayList<>();
+        int firstOctet = ip[0];
+        int defaultCidr = 24;
+
+        if (firstOctet >= 1 && firstOctet <= 126) defaultCidr = 8;
+        else if (firstOctet >= 128 && firstOctet <= 191) defaultCidr = 16;
+        else if (firstOctet >= 192 && firstOctet <= 223) defaultCidr = 24;
+        else return blocos;
+
+        int numSubnets = (int) Math.pow(2, cidr - defaultCidr);
+        long step = 1L << (32 - cidr);
+        long broadcastOffset = step - 1;
+
+        int[] classMask = cidrToMask(defaultCidr);
+        int[] baseNetwork = calcularEndereco(ip, classMask, true);
+        long baseNetworkLong = ipArrayToLong(baseNetwork);
+
+        int maxSubnetsToList = Math.min(numSubnets, 512);
+
+        for (int i = 0; i < maxSubnetsToList; i++) {
+            long currentSubnet = baseNetworkLong + (i * step);
+            long currentBroadcast = currentSubnet + broadcastOffset;
+
+            blocos.add(new SubnetBlock(
+                    longToIpString(currentSubnet),
+                    longToIpString(currentSubnet + 1),
+                    longToIpString(currentBroadcast - 1),
+                    longToIpString(currentBroadcast)
+            ));
+        }
+        return blocos;
+    }
+
+    private long ipArrayToLong(int[] ip) {
+        return ((long) ip[0] << 24) | ((long) ip[1] << 16) | ((long) ip[2] << 8) | ip[3];
+    }
+
+    private String longToIpString(long ipLong) {
+        return ((ipLong >> 24) & 0xFF) + "." +
+                ((ipLong >> 16) & 0xFF) + "." +
+                ((ipLong >> 8) & 0xFF) + "." +
+                (ipLong & 0xFF);
     }
 }

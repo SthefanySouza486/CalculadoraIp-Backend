@@ -4,8 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
-@Setter@AllArgsConstructor
+@Setter
+@AllArgsConstructor
 public class IpResponse {
     private String ipInformado;
     private String mascaraSubRede;
@@ -16,4 +19,5 @@ public class IpResponse {
     private String ultimoIpValido;
     private Long quantidadeHosts;
     private String classeIp;
+    private List<SubnetBlock> blocosSubrede;
 }
