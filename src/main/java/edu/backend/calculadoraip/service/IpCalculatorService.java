@@ -3,13 +3,17 @@ package edu.backend.calculadoraip.service;
 import edu.backend.calculadoraip.dto.IpRequest;
 import edu.backend.calculadoraip.dto.IpResponse;
 import edu.backend.calculadoraip.entity.NetworkInfo;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class IpCalculatorService {
 
     public IpResponse calcularRede(IpRequest request) {
         NetworkInfo info = parseInput(request.getIp(), request.getMaskOrCidr());
+
+        validarMascaraContigua(info.getMaskOctetos());
 
         int[] networkOctetos = calcularEndereco(info.getIpOctetos(), info.getMaskOctetos(), true);
         int[] broadcastOctetos = calcularEndereco(info.getIpOctetos(), info.getMaskOctetos(), false);
@@ -94,5 +98,15 @@ public class IpCalculatorService {
         if (firstOctet >= 192 && firstOctet <= 223) return "C";
         if (firstOctet >= 224 && firstOctet <= 239) return "D (Multicast)";
         return "E (Experimental)";
+    }
+
+    private void validarMascaraContigua(int[] mask) {
+        long mascaraCompleta = ((long) mask[0] << 24) | (mask[1] << 16) | (mask[2] << 8) | mask[3];
+
+        long invertida = ~mascaraCompleta & 0xFFFFFFFFL;
+
+        if ((invertida & (invertida + 1)) != 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Máscara Inválida");
+        }
     }
 }
